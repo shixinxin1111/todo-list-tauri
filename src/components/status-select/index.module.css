@@ -1,0 +1,93 @@
+.select {
+  width: 80px;
+}
+
+.select :global(.arco-select-view) {
+  border-color: transparent;
+  font-weight: 650;
+}
+
+.notStarted :global(.arco-select-view) {
+  background: rgba(255, 125, 0, 0.1);
+  color: #ff7d00;
+}
+
+.notStarted:hover :global(.arco-select-view) {
+  background: rgba(255, 125, 0, 0.16);
+}
+
+.notStarted:global(.arco-select-focused) :global(.arco-select-view),
+.notStarted:global(.arco-select-open) :global(.arco-select-view) {
+  border-color: transparent;
+  background: rgba(255, 125, 0, 0.1);
+  color: #ff7d00;
+  box-shadow: none;
+}
+
+.inProgress :global(.arco-select-view) {
+  background: rgba(22, 93, 255, 0.1);
+  color: #165dff;
+}
+
+.inProgress:hover :global(.arco-select-view) {
+  background: rgba(22, 93, 255, 0.16);
+}
+
+.inProgress:global(.arco-select-focused) :global(.arco-select-view),
+.inProgress:global(.arco-select-open) :global(.arco-select-view) {
+  border-color: transparent;
+  background: rgba(22, 93, 255, 0.1);
+  color: #165dff;
+  box-shadow: none;
+}
+
+.completed :global(.arco-select-view) {
+  background: rgba(0, 180, 42, 0.1);
+  color: #00b42a;
+}
+
+.completed:hover :global(.arco-select-view) {
+  background: rgba(0, 180, 42, 0.16);
+}
+
+.completed:global(.arco-select-focused) :global(.arco-select-view),
+.completed:global(.arco-select-open) :global(.arco-select-view) {
+  border-color: transparent;
+  background: rgba(0, 180, 42, 0.1);
+  color: #00b42a;
+  box-shadow: none;
+}
+
+.select :global(.arco-select-arrow-icon) {
+  color: currentcolor;
+}
+
+.optionLabel {
+  font-size: 12px;
+}
+
+.dropdown .optionLabel {
+  font-weight: 400;
+}
+
+.dropdown :global(.arco-select-option) {
+  line-height: 28px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.dropdown :global(.arco-select-option-selected) .optionLabel {
+  font-weight: 650;
+}
+
+.optionNotStarted {
+  color: #ff7d00;
+}
+
+.optionInProgress {
+  color: #165dff;
+}
+
+.optionCompleted {
+  color: #00b42a;
+}

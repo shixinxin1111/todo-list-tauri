@@ -1,0 +1,10 @@
+.actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.button {
+  padding: 0;
+}

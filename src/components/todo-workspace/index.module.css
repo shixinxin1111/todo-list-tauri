@@ -1,0 +1,136 @@
+.workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+.card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(48, 45, 39, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow:
+    0 16px 38px rgba(45, 41, 34, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.card :global(.arco-card-body) {
+  display: grid;
+  grid-template-rows: auto 40px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(48, 45, 39, 0.08);
+  padding: 9px 14px;
+}
+
+.headingTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.headingTitle > span {
+  color: #756e63;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.headingTitle strong {
+  color: #242821;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.metrics {
+  display: flex;
+  gap: 7px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.metric {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 120px 96px;
+  align-items: center;
+  border-bottom: 1px solid rgba(48, 45, 39, 0.07);
+  background: rgba(250, 247, 241, 0.72);
+}
+
+.tableHeaderWithScrollbar {
+  margin-right: 14px;
+}
+
+.tableHeaderCell {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 9px 16px;
+  color: #7a7368;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.tableHeaderCell:first-child {
+  padding: 0;
+}
+
+.tableHeaderCell:last-child {
+  padding-right: 20px;
+}
+
+.tableFrame {
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
+.table {
+  min-height: 0;
+}
+
+.table :global(.arco-table-td) {
+  border-bottom-color: rgba(48, 45, 39, 0.07);
+}
+
+.table :global(.arco-table-td:last-child) {
+  padding-right: 20px;
+}
+
+.doneTitle {
+  color: #81796d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.empty {
+  align-self: start;
+  padding: 18px 14px;
+}

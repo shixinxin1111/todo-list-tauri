@@ -1,0 +1,47 @@
+.body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.floating {
+  padding-right: 0;
+}
+
+.title,
+.note {
+  min-width: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.title {
+  color: #2a2e28;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.floatingTitle {
+  font-size: 12px;
+}
+
+.notStarted {
+  color: #81796d;
+}
+
+.inProgress {
+  color: #2a2e28;
+}
+
+.note {
+  color: #756e63;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.done {
+  color: #81796d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}

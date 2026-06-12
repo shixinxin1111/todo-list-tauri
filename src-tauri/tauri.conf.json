@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauriDemo",
+  "productName": "Todo List App",
   "version": "0.1.0",
   "identifier": "com.bytedance.todo-list-tauri",
   "build": {
@@ -13,9 +13,19 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "tauriDemo",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Todo List App",
+        "width": 1000,
+        "height": 720,
+        "minWidth": 850,
+        "minHeight": 520,
+        "backgroundColor": "#f4f1ea",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 24
+        }
       }
     ],
     "security": {

@@ -1,0 +1,73 @@
+.toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid rgba(48, 45, 39, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 8px;
+}
+
+.filters,
+.actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.filters {
+  gap: 8px;
+  flex: 1 1 auto;
+}
+
+.actions {
+  flex: 0 0 auto;
+}
+
+.search {
+  flex: 0 1 320px;
+  width: min(320px, 36vw);
+  min-width: 0;
+}
+
+.statusSelect {
+  flex: 0 0 260px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .search,
+  .statusSelect {
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1180px) {
+  .search {
+    flex-basis: 320px;
+    width: 320px;
+  }
+
+  .statusSelect {
+    flex-basis: 300px;
+    width: 300px;
+  }
+}

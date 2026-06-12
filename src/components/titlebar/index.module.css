@@ -1,0 +1,66 @@
+.titlebar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 42px;
+  padding: 0 14px 0 86px;
+  color: rgba(47, 44, 37, 0.74);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: grab;
+}
+
+.floating {
+  padding: 0 10px 0 14px;
+}
+
+.brand,
+.actions {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.brand {
+  gap: 8px;
+  overflow: visible;
+  color: #292620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brandIcon {
+  flex: 0 0 auto;
+  color: #722ed1;
+  filter: drop-shadow(0 0 5px rgba(114, 46, 209, 0.22));
+  font-size: 16px;
+  transform: translateY(1px);
+}
+
+.metric {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(47, 125, 87, 0.1);
+  color: #2f7d57;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.actions {
+  gap: 6px;
+}
+
+@media (max-width: 760px) {
+  .titlebar {
+    padding-left: 80px;
+  }
+
+  .floating {
+    padding-left: 12px;
+  }
+}
