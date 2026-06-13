@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
 };
 use uuid::Uuid;
 
@@ -23,6 +23,7 @@ const TRAY_FOCUS_DEBOUNCE: Duration = Duration::from_millis(250);
 /// 鼠标在托盘图标上按下后的“保护期”：在该时间窗口内全局鼠标监听不应
 /// 隐藏托盘窗，避免出现 “按下时隐藏、松手时 toggle 又显示” 的闪烁。
 const TRAY_MOUSE_DOWN_GUARD: Duration = Duration::from_millis(500);
+const GLOBAL_MOUSE_DOWN_HIDE_DELAY: Duration = Duration::from_millis(80);
 
 const TODOS_CHANGED_EVENT: &str = "todo-store:changed";
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -75,6 +76,9 @@ struct TodoStore {
 struct AppState {
     todo_store: Mutex<TodoStore>,
     is_quitting: Mutex<bool>,
+    /// Rust 侧期望的托盘窗口显隐状态。真实窗口状态仍是 toggle 的最终依据；
+    /// 这个状态用于在异常时序后把后续操作重新拉回一致。
+    tray_visibility: Mutex<TrayVisibility>,
     /// 缓存最近一次托盘图标的屏幕矩形，菜单项触发时用它定位托盘窗口。
     last_tray_rect: Mutex<Option<Rect>>,
     /// 托盘窗口最近一次被显示的时间，用于失焦防抖。
@@ -82,6 +86,18 @@ struct AppState {
     /// 鼠标在托盘图标上按下的时间。在该时刻 ~500ms 内全局鼠标监听不应隐藏
     /// 托盘窗，否则会出现 “按下隐藏 → 松手又显示” 的闪烁。
     tray_mouse_down_at: Mutex<Option<Instant>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TrayVisibility {
+    Hidden,
+    Visible,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TrayToggleAction {
+    Hide,
+    Show,
 }
 
 #[derive(Debug)]
@@ -276,6 +292,9 @@ fn hide_tray_window(app: &AppHandle) -> Result<(), AppError> {
         }
     }
 
+    set_tray_visibility(app, TrayVisibility::Hidden);
+    clear_tray_shown_at(app);
+    clear_tray_mouse_down(app);
     Ok(())
 }
 
@@ -304,11 +323,10 @@ fn get_tray_window_position(
     let work_min_x = monitor_position.x;
     let work_max_x = monitor_position.x + monitor_size.width;
     let work_min_y = monitor_position.y;
-    let target_x = (tray_position.x + (tray_size.width - TRAY_WINDOW_WIDTH) / 2.0)
-        .clamp(
-            work_min_x + TRAY_WINDOW_MARGIN,
-            (work_max_x - TRAY_WINDOW_WIDTH - TRAY_WINDOW_MARGIN).max(work_min_x),
-        );
+    let target_x = (tray_position.x + (tray_size.width - TRAY_WINDOW_WIDTH) / 2.0).clamp(
+        work_min_x + TRAY_WINDOW_MARGIN,
+        (work_max_x - TRAY_WINDOW_WIDTH - TRAY_WINDOW_MARGIN).max(work_min_x),
+    );
     let target_y = (tray_position.y + tray_size.height + TRAY_WINDOW_MARGIN).max(work_min_y);
 
     LogicalPosition::new(target_x, target_y)
@@ -349,15 +367,9 @@ fn create_tray_window(app: &AppHandle) -> Result<WebviewWindow, AppError> {
     Ok(window)
 }
 
-fn toggle_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
+fn show_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
     cache_tray_rect(app, tray_rect);
     let window = create_tray_window(app)?;
-
-    if window.is_visible()? {
-        window.hide()?;
-        clear_tray_shown_at(app);
-        return Ok(());
-    }
 
     let monitor = get_main_window(app)
         .ok()
@@ -375,14 +387,52 @@ fn toggle_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> 
     window.set_size(LogicalSize::new(TRAY_WINDOW_WIDTH, TRAY_WINDOW_HEIGHT))?;
     window.show()?;
     mark_tray_shown_now(app);
+    set_tray_visibility(app, TrayVisibility::Visible);
     window.set_focus()?;
 
     Ok(())
 }
 
+fn toggle_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
+    cache_tray_rect(app, tray_rect);
+    let window = create_tray_window(app)?;
+    let is_window_visible = window.is_visible().unwrap_or(false);
+
+    match get_tray_toggle_action(is_window_visible, get_tray_visibility(app)) {
+        TrayToggleAction::Hide => hide_tray_window(app),
+        TrayToggleAction::Show => show_tray_window(app, tray_rect),
+    }
+}
+
+fn get_tray_toggle_action(
+    is_window_visible: bool,
+    _expected_visibility: TrayVisibility,
+) -> TrayToggleAction {
+    if is_window_visible {
+        TrayToggleAction::Hide
+    } else {
+        TrayToggleAction::Show
+    }
+}
+
 fn cache_tray_rect(app: &AppHandle, rect: Rect) {
     if let Ok(mut last) = app.state::<AppState>().last_tray_rect.lock() {
         *last = Some(rect);
+    }
+}
+
+fn get_tray_visibility(app: &AppHandle) -> TrayVisibility {
+    app.state::<AppState>()
+        .tray_visibility
+        .lock()
+        .ok()
+        .map(|guard| *guard)
+        .unwrap_or(TrayVisibility::Hidden)
+}
+
+fn set_tray_visibility(app: &AppHandle, visibility: TrayVisibility) {
+    if let Ok(mut guard) = app.state::<AppState>().tray_visibility.lock() {
+        *guard = visibility;
     }
 }
 
@@ -407,13 +457,97 @@ fn clear_tray_shown_at(app: &AppHandle) {
 }
 
 fn is_tray_window_in_debounce(app: &AppHandle) -> bool {
-    app.state::<AppState>()
+    let elapsed_since_show = app
+        .state::<AppState>()
         .tray_window_shown_at
         .lock()
         .ok()
         .and_then(|guard| *guard)
-        .map(|shown_at| shown_at.elapsed() < TRAY_FOCUS_DEBOUNCE)
-        .unwrap_or(false)
+        .map(|shown_at| shown_at.elapsed());
+    let elapsed_since_mouse_down = app
+        .state::<AppState>()
+        .tray_mouse_down_at
+        .lock()
+        .ok()
+        .and_then(|guard| *guard)
+        .map(|at| at.elapsed());
+
+    should_ignore_tray_focus_loss(
+        elapsed_since_show,
+        elapsed_since_mouse_down,
+        is_mouse_over_tray_icon(app),
+    )
+}
+
+fn should_ignore_tray_focus_loss(
+    elapsed_since_show: Option<Duration>,
+    elapsed_since_mouse_down: Option<Duration>,
+    is_mouse_over_tray_icon: bool,
+) -> bool {
+    is_mouse_over_tray_icon
+        || elapsed_since_show
+            .map(|elapsed| elapsed < TRAY_FOCUS_DEBOUNCE)
+            .unwrap_or(false)
+        || elapsed_since_mouse_down
+            .map(|elapsed| elapsed < TRAY_MOUSE_DOWN_GUARD)
+            .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated, unexpected_cfgs)]
+fn is_mouse_over_tray_icon(app: &AppHandle) -> bool {
+    use cocoa::foundation::NSPoint;
+    use objc::{class, msg_send, sel, sel_impl};
+
+    let Some(rect) = get_cached_tray_rect(app) else {
+        return false;
+    };
+
+    unsafe {
+        let location: NSPoint = msg_send![class!(NSEvent), mouseLocation];
+        is_screen_point_in_tray_rect(location, rect)
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated, unexpected_cfgs)]
+fn is_screen_point_in_tray_rect(location: cocoa::foundation::NSPoint, rect: Rect) -> bool {
+    use cocoa::base::id;
+    use cocoa::foundation::NSRect;
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let screens: id = msg_send![class!(NSScreen), screens];
+        let count: usize = msg_send![screens, count];
+
+        for index in 0..count {
+            let screen: id = msg_send![screens, objectAtIndex: index];
+            let frame: NSRect = msg_send![screen, frame];
+            let scale: f64 = msg_send![screen, backingScaleFactor];
+            let scale = if scale <= 0.0 { 1.0 } else { scale };
+            let pos = rect.position.to_logical::<f64>(scale);
+            let size = rect.size.to_logical::<f64>(scale);
+            let icon_top = frame.origin.y + frame.size.height - pos.y;
+            let icon_bottom = icon_top - size.height;
+            let icon_left = frame.origin.x + pos.x;
+            let icon_right = icon_left + size.width;
+
+            if location.x >= icon_left
+                && location.x <= icon_right
+                && location.y <= icon_top
+                && location.y >= icon_bottom
+            {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_mouse_over_tray_icon(_app: &AppHandle) -> bool {
+    false
 }
 
 fn mark_tray_mouse_down(app: &AppHandle) {
@@ -423,13 +557,30 @@ fn mark_tray_mouse_down(app: &AppHandle) {
 }
 
 fn is_tray_mouse_down_guard_active(app: &AppHandle) -> bool {
+    get_elapsed_since_tray_mouse_down(app)
+        .map(|at| at < TRAY_MOUSE_DOWN_GUARD)
+        .unwrap_or(false)
+}
+
+fn get_elapsed_since_tray_mouse_down(app: &AppHandle) -> Option<Duration> {
     app.state::<AppState>()
         .tray_mouse_down_at
         .lock()
         .ok()
         .and_then(|guard| *guard)
-        .map(|at| at.elapsed() < TRAY_MOUSE_DOWN_GUARD)
-        .unwrap_or(false)
+        .map(|at| at.elapsed())
+}
+
+fn should_hide_after_global_mouse_down(elapsed_since_tray_mouse_down: Option<Duration>) -> bool {
+    elapsed_since_tray_mouse_down
+        .map(|elapsed| elapsed >= TRAY_MOUSE_DOWN_GUARD)
+        .unwrap_or(true)
+}
+
+fn clear_tray_mouse_down(app: &AppHandle) {
+    if let Ok(mut guard) = app.state::<AppState>().tray_mouse_down_at.lock() {
+        *guard = None;
+    }
 }
 
 fn emit_todos_changed(app: &AppHandle, todos: &[TodoItem]) -> Result<(), AppError> {
@@ -463,8 +614,7 @@ fn hex_to_rgba(hex: &str) -> Result<tauri::window::Color, AppError> {
     }
 
     let red = u8::from_str_radix(&hex[0..2], 16).map_err(|_| AppError::new("颜色解析失败。"))?;
-    let green =
-        u8::from_str_radix(&hex[2..4], 16).map_err(|_| AppError::new("颜色解析失败。"))?;
+    let green = u8::from_str_radix(&hex[2..4], 16).map_err(|_| AppError::new("颜色解析失败。"))?;
     let blue = u8::from_str_radix(&hex[4..6], 16).map_err(|_| AppError::new("颜色解析失败。"))?;
 
     Ok(tauri::window::Color(red, green, blue, 255))
@@ -501,12 +651,12 @@ fn set_traffic_lights_hidden(window: &WebviewWindow, hidden: bool) {
 #[cfg(not(target_os = "macos"))]
 fn set_traffic_lights_hidden(_window: &WebviewWindow, _hidden: bool) {}
 
-/// macOS 上 `Focused(false)` 不能可靠覆盖“点击菜单栏空白 / 系统菜单 / 其他
-/// 状态项”这类场景：点击菜单栏不会切换 key window，托盘窗收不到失焦事件。
+/// macOS 上 `Focused(false)` 不能可靠覆盖“点击桌面 / 其他 App / 菜单栏空白 /
+/// 系统菜单 / 其他状态项”这类场景：部分点击不会稳定切换 key window。
 /// 这里参考 Electron 版的实现（`NSMenuDidBeginTrackingNotification` + 全局
 /// 鼠标监听）补全：
 /// 1. 任何菜单开始 tracking 时主动隐藏（覆盖系统菜单 / 应用菜单 / 状态项菜单）
-/// 2. 全局 MouseDown 事件 + 命中菜单栏区域时主动隐藏（覆盖菜单栏空白处点击）
+/// 2. 全局 MouseDown 事件主动隐藏（覆盖桌面、其他 App、菜单栏空白处点击）
 ///
 /// 注意：`addObserverForName:` 与 `addGlobalMonitorForEventsMatchingMask:` 都
 /// 返回需要持有的 opaque token，必须 leak / forget 让其常驻进程生命周期，
@@ -516,7 +666,7 @@ fn set_traffic_lights_hidden(_window: &WebviewWindow, _hidden: bool) {}
 fn observe_menu_bar_clicks(app: &AppHandle) {
     use block::ConcreteBlock;
     use cocoa::base::{id, nil};
-    use cocoa::foundation::{NSPoint, NSRect, NSString};
+    use cocoa::foundation::{NSPoint, NSString};
     use objc::runtime::Object;
     use objc::{class, msg_send, sel, sel_impl};
 
@@ -524,6 +674,10 @@ fn observe_menu_bar_clicks(app: &AppHandle) {
     {
         let app_handle = app.clone();
         let block = ConcreteBlock::new(move |_note: *mut Object| {
+            if is_mouse_over_tray_icon(&app_handle) {
+                return;
+            }
+
             let _ = hide_tray_window(&app_handle);
         });
         let block = block.copy();
@@ -544,7 +698,8 @@ fn observe_menu_bar_clicks(app: &AppHandle) {
         }
     }
 
-    // 2) 全局鼠标点击监听，命中菜单栏区域则隐藏托盘窗
+    // 2) 全局鼠标点击监听，短暂延迟后隐藏托盘窗。延迟给托盘图标自己的
+    // mouseDown 事件一个登记保护期的机会，避免二次点击图标时被误判为外部点击。
     {
         let app_handle = app.clone();
         let block = ConcreteBlock::new(move |event: *mut Object| unsafe {
@@ -556,56 +711,24 @@ fn observe_menu_bar_clicks(app: &AppHandle) {
             if is_tray_mouse_down_guard_active(&app_handle) {
                 return;
             }
-            let screens: id = msg_send![class!(NSScreen), screens];
-            let count: usize = msg_send![screens, count];
-            if count == 0 {
-                return;
-            }
-            let main_screen: id = msg_send![screens, objectAtIndex: 0usize];
-            let frame: NSRect = msg_send![main_screen, frame];
-            let visible: NSRect = msg_send![main_screen, visibleFrame];
-            let menu_bar_height =
-                frame.size.height - (visible.origin.y - frame.origin.y + visible.size.height);
-            if menu_bar_height <= 0.0 {
-                return;
-            }
-            let menu_bar_top = frame.origin.y + frame.size.height;
-            let menu_bar_bottom = menu_bar_top - menu_bar_height;
-
             let location: NSPoint = msg_send![class!(NSEvent), mouseLocation];
-            if location.y < menu_bar_bottom || location.y > menu_bar_top {
-                return;
-            }
-            if location.x < frame.origin.x || location.x > frame.origin.x + frame.size.width {
-                return;
-            }
 
-            // 排除点在 Todo 自己托盘图标上的情况，那里由 tray click handler toggle
-            let cached_rect = app_handle
-                .state::<AppState>()
-                .last_tray_rect
-                .lock()
-                .ok()
-                .and_then(|guard| guard.clone());
-            if let Some(rect) = cached_rect {
-                let scale: f64 = msg_send![main_screen, backingScaleFactor];
-                let scale = if scale <= 0.0 { 1.0 } else { scale };
-                let pos = rect.position.to_logical::<f64>(scale);
-                let size = rect.size.to_logical::<f64>(scale);
-                let icon_top = frame.origin.y + frame.size.height - pos.y;
-                let icon_bottom = icon_top - size.height;
-                let icon_left = pos.x;
-                let icon_right = pos.x + size.width;
-                if location.x >= icon_left
-                    && location.x <= icon_right
-                    && location.y <= icon_top
-                    && location.y >= icon_bottom
-                {
+            // 排除点在 Todo 自己托盘图标上的情况，那里由 tray click handler toggle。
+            if let Some(rect) = get_cached_tray_rect(&app_handle) {
+                if is_screen_point_in_tray_rect(location, rect) {
                     return;
                 }
             }
 
-            let _ = hide_tray_window(&app_handle);
+            let app_handle = app_handle.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(GLOBAL_MOUSE_DOWN_HIDE_DELAY);
+                if should_hide_after_global_mouse_down(get_elapsed_since_tray_mouse_down(
+                    &app_handle,
+                )) {
+                    let _ = hide_tray_window(&app_handle);
+                }
+            });
         });
         let block = block.copy();
 
@@ -691,12 +814,9 @@ fn setup_tray(app: &AppHandle) -> Result<(), AppError> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| match event {
-            // 注意：tauri 2.x 的 `MouseButtonState` 注释表明
-            // `Up` 表示按下（pressed），`Down` 表示松开（released）。
-            // 这里依据语义而非字面名称使用。
             TrayIconEvent::Click {
                 button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
+                button_state: MouseButtonState::Down,
                 rect,
                 ..
             } => {
@@ -705,7 +825,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), AppError> {
             }
             TrayIconEvent::Click {
                 button: MouseButton::Left,
-                button_state: MouseButtonState::Down,
+                button_state: MouseButtonState::Up,
                 rect,
                 ..
             } => {
@@ -762,6 +882,10 @@ fn attach_main_window_events(window: &WebviewWindow) {
         }
 
         if let WindowEvent::Focused(true) = event {
+            if is_tray_window_in_debounce(&app) {
+                return;
+            }
+
             let _ = hide_tray_window(&app);
         }
     });
@@ -821,7 +945,6 @@ fn set_todo_status(
 
 fn attach_tray_window_events(window: &WebviewWindow) {
     let app = window.app_handle().clone();
-    let window_handle = window.clone();
     window.clone().on_window_event(move |event| match event {
         WindowEvent::Focused(false) => {
             // macOS 在点击托盘图标的瞬间会将 key 焦点临时交给状态栏，
@@ -837,8 +960,7 @@ fn attach_tray_window_events(window: &WebviewWindow) {
                 return;
             }
 
-            let _ = window_handle.hide();
-            clear_tray_shown_at(&app);
+            let _ = hide_tray_window(&app);
         }
         WindowEvent::CloseRequested { api, .. } => {
             let should_hide = app
@@ -851,8 +973,7 @@ fn attach_tray_window_events(window: &WebviewWindow) {
 
             if should_hide {
                 api.prevent_close();
-                let _ = window_handle.hide();
-                clear_tray_shown_at(&app);
+                let _ = hide_tray_window(&app);
             }
         }
         _ => {}
@@ -873,6 +994,7 @@ pub fn run() {
             app.manage(AppState {
                 todo_store: Mutex::new(TodoStore::new(todos_path)),
                 is_quitting: Mutex::new(false),
+                tray_visibility: Mutex::new(TrayVisibility::Hidden),
                 last_tray_rect: Mutex::new(None),
                 tray_window_shown_at: Mutex::new(None),
                 tray_mouse_down_at: Mutex::new(None),
@@ -897,4 +1019,69 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tray_focus_loss_is_ignored_during_show_debounce() {
+        assert!(should_ignore_tray_focus_loss(
+            Some(Duration::from_millis(50)),
+            None,
+            false,
+        ));
+    }
+
+    #[test]
+    fn tray_focus_loss_is_ignored_during_tray_mouse_guard() {
+        assert!(should_ignore_tray_focus_loss(
+            Some(Duration::from_millis(800)),
+            Some(Duration::from_millis(50)),
+            false,
+        ));
+    }
+
+    #[test]
+    fn tray_focus_loss_is_ignored_when_mouse_is_over_tray_icon() {
+        assert!(should_ignore_tray_focus_loss(
+            Some(Duration::from_millis(800)),
+            Some(Duration::from_millis(800)),
+            true,
+        ));
+    }
+
+    #[test]
+    fn tray_focus_loss_is_handled_after_guards_expire() {
+        assert!(!should_ignore_tray_focus_loss(
+            Some(Duration::from_millis(800)),
+            Some(Duration::from_millis(800)),
+            false,
+        ));
+    }
+
+    #[test]
+    fn tray_toggle_uses_actual_window_visibility_to_recover_state() {
+        assert_eq!(
+            get_tray_toggle_action(true, TrayVisibility::Hidden),
+            TrayToggleAction::Hide,
+        );
+        assert_eq!(
+            get_tray_toggle_action(false, TrayVisibility::Visible),
+            TrayToggleAction::Show,
+        );
+    }
+
+    #[test]
+    fn delayed_global_mouse_down_hide_is_skipped_when_tray_press_arrives() {
+        assert!(!should_hide_after_global_mouse_down(Some(
+            Duration::from_millis(30,)
+        )));
+    }
+
+    #[test]
+    fn delayed_global_mouse_down_hide_runs_without_tray_press() {
+        assert!(should_hide_after_global_mouse_down(None));
+    }
 }
