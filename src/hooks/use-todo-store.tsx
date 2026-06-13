@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Message } from "@arco-design/web-react";
-import { getErrorMessage, getTodoStoreApi } from "@/utils/api";
+import { getErrorMessage, getTodoStoreApi, onTodosChange } from "@/utils/api";
 
 /**
  * useTodoStore 负责渲染进程侧的任务数据读取与写入编排。
@@ -37,8 +37,15 @@ export function useTodoStore() {
         }
       });
 
+    const unsubscribe = onTodosChange((nextTodos) => {
+      if (isMounted) {
+        setTodos(nextTodos);
+      }
+    });
+
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, []);
 

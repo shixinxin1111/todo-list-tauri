@@ -1,5 +1,5 @@
 ---
-alwaysApply: true
+alwaysApply: false
 description: 统一 Git 提交信息的格式与语言风格，遵循 Conventional Commits 规范，确保提交历史清晰、可检索、可生成变更日志
 scene: git_message
 ---

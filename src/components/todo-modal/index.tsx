@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Form, Input, Modal } from "@arco-design/web-react";
-import { classNames } from "@/utils/class-name";
 import type { TodoModalMode } from "@/types/app";
 import styles from "./index.module.css";
 
@@ -12,7 +11,6 @@ type TodoModalFormValues = {
 type TodoModalProps = {
   draft: TodoInput;
   isBusy: boolean;
-  isFloating: boolean;
   mode: TodoModalMode | null;
   onCancel(): void;
   onSubmit(draft: TodoInput): void;
@@ -26,7 +24,6 @@ type TodoModalProps = {
 export function TodoModal({
   draft,
   isBusy,
-  isFloating,
   mode,
   onCancel,
   onSubmit,
@@ -57,7 +54,7 @@ export function TodoModal({
 
   return (
     <Modal
-      className={classNames(styles.modal, isFloating && styles.floating)}
+      className={styles.modal}
       cancelText="取消"
       confirmLoading={isBusy}
       maskClosable={false}

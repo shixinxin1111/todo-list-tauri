@@ -2,10 +2,6 @@
   width: min(420px, calc(100vw - 36px));
 }
 
-.floating {
-  width: min(360px, calc(100vw - 24px));
-}
-
 .form {
   margin-top: 4px;
 }

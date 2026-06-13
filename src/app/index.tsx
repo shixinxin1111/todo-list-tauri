@@ -6,7 +6,6 @@ import { TodoModal } from "@/components/todo-modal";
 import { TodoWorkspace } from "@/components/todo-workspace";
 import { defaultDraft, defaultFilters } from "@/constants/todo";
 import { useTodoStore } from "@/hooks/use-todo-store";
-import { useWindowState } from "@/hooks/use-window-state";
 import { filterTodos, getTodoCounts, isActiveTodo } from "@/utils/todo";
 import type { TodoFilters, TodoModalMode } from "@/types/app";
 
@@ -21,7 +20,6 @@ export function App() {
   const [filters, setFilters] = useState<TodoFilters>(defaultFilters);
   const [modalMode, setModalMode] = useState<TodoModalMode | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const { changeWindowMode, isBusy, windowState } = useWindowState();
   const {
     addTodo,
     deleteTodo: removeTodo,
@@ -30,9 +28,10 @@ export function App() {
     todos,
     updateTodo,
   } = useTodoStore();
-
-  const isFloating = windowState.mode !== "normal";
-  const isFloatingCollapsed = windowState.mode === "miniFloating";
+  const isTrayView = useMemo(
+    () => new URLSearchParams(window.location.search).get("view") === "tray",
+    [],
+  );
 
   const visibleTodos = useMemo(
     () => filterTodos(todos, filters),
@@ -90,20 +89,15 @@ export function App() {
   return (
     <>
       <AppShell
-        isFloating={isFloating}
-        isFloatingCollapsed={isFloatingCollapsed}
+        isCompact={isTrayView}
         titlebar={
           <Titlebar
-            isBusy={isBusy}
-            isFloating={isFloating}
-            isFloatingCollapsed={isFloatingCollapsed}
             unfinishedCount={unfinishedCount}
-            windowMode={windowState.mode}
-            onWindowModeChange={(mode) => void changeWindowMode(mode)}
+            view={isTrayView ? "tray" : "main"}
           />
         }
       >
-        {isFloating ? (
+        {isTrayView ? (
           <FloatingList
             isTodoBusy={isTodoBusy}
             todos={floatingTodos}
@@ -129,14 +123,15 @@ export function App() {
         )}
       </AppShell>
 
-      <TodoModal
-        draft={draft}
-        isBusy={isTodoBusy}
-        isFloating={isFloating}
-        mode={modalMode}
-        onCancel={closeModal}
-        onSubmit={(input) => void submitTodo(input)}
-      />
+      {isTrayView ? null : (
+        <TodoModal
+          draft={draft}
+          isBusy={isTodoBusy}
+          mode={modalMode}
+          onCancel={closeModal}
+          onSubmit={(input) => void submitTodo(input)}
+        />
+      )}
     </>
   );
 }

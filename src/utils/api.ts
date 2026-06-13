@@ -1,40 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-const WINDOW_MODE_CHANGED_EVENT = "todo-window:mode-changed";
+const TODOS_CHANGED_EVENT = "todo-store:changed";
 
 const todoWindowApi: TodoWindowApi = {
-  getMode() {
-    return invoke<TodoWindowState>("get_window_mode");
-  },
-  getCursorPosition() {
-    return invoke<WindowCursorPosition | null>("get_window_cursor_position");
-  },
-  onModeChange(callback) {
-    let detach: UnlistenFn | null = null;
-    let isDisposed = false;
-
-    void listen<TodoWindowState>(
-      WINDOW_MODE_CHANGED_EVENT,
-      (event) => {
-        callback(event.payload);
-      },
-    ).then((unlisten) => {
-      if (isDisposed) {
-        unlisten();
-        return;
-      }
-
-      detach = unlisten;
-    });
-
-    return () => {
-      isDisposed = true;
-      detach?.();
-    };
-  },
-  setMode(mode) {
-    return invoke<TodoWindowState>("set_window_mode", { mode });
+  showMainWindow() {
+    return invoke<void>("show_main_window");
   },
 };
 
@@ -62,6 +33,27 @@ export function getTodoWindowApi() {
 
 export function getTodoStoreApi() {
   return todoStoreApi;
+}
+
+export function onTodosChange(callback: (todos: TodoItem[]) => void) {
+  let detach: UnlistenFn | null = null;
+  let isDisposed = false;
+
+  void listen<TodoItem[]>(TODOS_CHANGED_EVENT, (event) => {
+    callback(event.payload);
+  }).then((unlisten) => {
+    if (isDisposed) {
+      unlisten();
+      return;
+    }
+
+    detach = unlisten;
+  });
+
+  return () => {
+    isDisposed = true;
+    detach?.();
+  };
 }
 
 /**

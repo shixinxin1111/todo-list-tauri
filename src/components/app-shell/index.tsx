@@ -4,8 +4,7 @@ import styles from "./index.module.css";
 
 type AppShellProps = {
   children: ReactNode;
-  isFloating: boolean;
-  isFloatingCollapsed: boolean;
+  isCompact: boolean;
   titlebar: ReactNode;
 };
 
@@ -16,26 +15,16 @@ type AppShellProps = {
  */
 export function AppShell({
   children,
-  isFloating,
-  isFloatingCollapsed,
+  isCompact,
   titlebar,
 }: AppShellProps) {
   return (
-    <main
-      className={classNames(
-        styles.app,
-        isFloating && styles.floating,
-        isFloatingCollapsed && styles.collapsed,
-      )}
-    >
+    <main className={classNames(styles.app, isCompact && styles.compact)}>
       <section className={styles.panel}>
         {titlebar}
-
-        {isFloatingCollapsed ? null : (
-          <div className={styles.content}>
-            <div className={styles.contentInner}>{children}</div>
-          </div>
-        )}
+        <div className={styles.content}>
+          <div className={styles.contentInner}>{children}</div>
+        </div>
       </section>
     </main>
   );

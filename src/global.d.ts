@@ -1,31 +1,8 @@
-type TodoWindowMode = "normal" | "floating" | "miniFloating";
-
-type TodoWindowState = {
-  mode: TodoWindowMode;
-};
-
-type WindowCursorPosition = {
-  x: number;
-  y: number;
-};
-
 type TodoWindowApi = {
   /**
-   * getMode 读取主进程记录的当前窗口形态，用于渲染层初始化同步。
+   * showMainWindow 从托盘弹出窗回到主窗口。
    */
-  getMode(): Promise<TodoWindowState>;
-  /**
-   * getCursorPosition 读取鼠标相对窗口内容区域的位置；当鼠标不在窗口内时返回 null。
-   */
-  getCursorPosition(): Promise<WindowCursorPosition | null>;
-  /**
-   * setMode 请求主进程切换窗口形态，实际窗口尺寸由主进程裁决。
-   */
-  setMode(mode: TodoWindowMode): Promise<TodoWindowState>;
-  /**
-   * onModeChange 订阅主进程形态变化，返回取消订阅函数。
-   */
-  onModeChange(callback: (state: TodoWindowState) => void): () => void;
+  showMainWindow(): Promise<void>;
 };
 
 type TodoStatus = "notStarted" | "inProgress" | "completed";

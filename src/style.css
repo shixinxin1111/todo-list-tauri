@@ -26,6 +26,21 @@ body,
   background: #f4f1ea;
 }
 
+/* 托盘视图开启 macOS transparent 窗口，html/body/#root 必须透明，
+   圆角由 .panel 自身的 border-radius 提供，否则矩形底色会盖住圆角。 */
+[data-view="tray"] {
+  background: transparent !important;
+}
+
+/* 同时给最外层容器附加圆角并裁切，避免 WKWebView 内部 layer
+   在某个角（实测左下角）渲染出直角溢出。 */
+html[data-view="tray"],
+body[data-view="tray"],
+#root[data-view="tray"] {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 .arco-btn,
 .arco-input,
 .arco-select {

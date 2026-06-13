@@ -29,7 +29,7 @@
   content: "";
 }
 
-.floating .panel {
+.compact .panel {
   grid-template-rows: 42px minmax(0, 1fr);
   border: 1px solid rgba(49, 45, 38, 0.1);
   border-radius: 14px;
@@ -43,14 +43,6 @@
   box-shadow:
     0 22px 54px rgba(45, 41, 34, 0.18),
     0 2px 6px rgba(45, 41, 34, 0.08);
-}
-
-.collapsed .panel {
-  grid-template-rows: 42px;
-}
-
-.collapsed .panel::before {
-  display: none;
 }
 
 .content {
@@ -71,7 +63,7 @@
   padding: 18px clamp(20px, 4vw, 56px) 22px;
 }
 
-.floating .contentInner {
+.compact .contentInner {
   padding: 10px;
 }
 

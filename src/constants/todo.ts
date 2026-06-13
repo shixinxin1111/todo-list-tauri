@@ -1,15 +1,6 @@
 import type { TodoFilters } from "@/types/app";
 
 /**
- * initialWindowState 是渲染进程在主进程状态返回前使用的窗口默认形态。
- *
- * 这里保持普通主窗口 + 悬浮展开的组合，避免首次渲染时误进入收起态。
- */
-export const initialWindowState: TodoWindowState = {
-  mode: "normal",
-};
-
-/**
  * defaultDraft 是新增或编辑弹窗关闭后恢复的表单默认值。
  *
  * 新增任务时不会主动提交 status，存储层会兜底使用 notStarted。
