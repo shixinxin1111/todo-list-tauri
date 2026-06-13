@@ -34,6 +34,13 @@ struct TodoWindowStatePayload {
     mode: TodoWindowMode,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowCursorPositionPayload {
+    x: f64,
+    y: f64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 enum TodoStatus {
@@ -493,6 +500,31 @@ fn get_window_mode(state: tauri::State<AppState>) -> Result<TodoWindowStatePaylo
 }
 
 #[tauri::command]
+fn get_window_cursor_position(
+    app: AppHandle,
+) -> Result<Option<WindowCursorPositionPayload>, AppError> {
+    let window = get_main_window(&app)?;
+    let cursor_position = window.cursor_position()?;
+    let window_position = window.inner_position()?;
+    let window_size = window.inner_size()?;
+    let scale_factor = window.scale_factor()?;
+
+    let relative_x = (cursor_position.x - f64::from(window_position.x)) / scale_factor;
+    let relative_y = (cursor_position.y - f64::from(window_position.y)) / scale_factor;
+    let width = f64::from(window_size.width) / scale_factor;
+    let height = f64::from(window_size.height) / scale_factor;
+
+    if relative_x < 0.0 || relative_y < 0.0 || relative_x > width || relative_y > height {
+        return Ok(None);
+    }
+
+    Ok(Some(WindowCursorPositionPayload {
+        x: relative_x,
+        y: relative_y,
+    }))
+}
+
+#[tauri::command]
 fn set_window_mode(
     app: AppHandle,
     mode: TodoWindowMode,
@@ -587,6 +619,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_window_mode,
+            get_window_cursor_position,
             set_window_mode,
             list_todos,
             add_todo,

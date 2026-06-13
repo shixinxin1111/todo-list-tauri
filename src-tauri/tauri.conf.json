@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Todo List App",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.bytedance.todo-list-tauri",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -20,6 +20,7 @@
         "minWidth": 850,
         "minHeight": 520,
         "backgroundColor": "#f4f1ea",
+        "acceptFirstMouse": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {

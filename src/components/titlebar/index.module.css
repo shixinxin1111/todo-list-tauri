@@ -11,7 +11,6 @@
   color: rgba(47, 44, 37, 0.74);
   font-size: 12px;
   font-weight: 650;
-  cursor: grab;
 }
 
 .floating {
@@ -53,6 +52,46 @@
 
 .actions {
   gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.windowActionSlot {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.windowAction:global(.arco-btn) {
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(41, 38, 32, 0.78);
+  cursor: default;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.windowAction:global(.arco-btn):hover,
+.windowAction:global(.arco-btn):focus-visible {
+  background: rgba(49, 45, 38, 0.1);
+  color: #292620;
+}
+
+.windowAction:global(.arco-btn):active {
+  background: rgba(49, 45, 38, 0.16);
+}
+
+.windowActionSlotHovered .windowAction:global(.arco-btn) {
+  background: rgba(49, 45, 38, 0.1);
+  color: #292620;
+}
+
+.windowAction:global(.arco-btn[disabled]) {
+  background: transparent;
+  color: rgba(41, 38, 32, 0.34);
+  cursor: default;
 }
 
 @media (max-width: 760px) {

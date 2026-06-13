@@ -4,11 +4,20 @@ type TodoWindowState = {
   mode: TodoWindowMode;
 };
 
+type WindowCursorPosition = {
+  x: number;
+  y: number;
+};
+
 type TodoWindowApi = {
   /**
    * getMode 读取主进程记录的当前窗口形态，用于渲染层初始化同步。
    */
   getMode(): Promise<TodoWindowState>;
+  /**
+   * getCursorPosition 读取鼠标相对窗口内容区域的位置；当鼠标不在窗口内时返回 null。
+   */
+  getCursorPosition(): Promise<WindowCursorPosition | null>;
   /**
    * setMode 请求主进程切换窗口形态，实际窗口尺寸由主进程裁决。
    */

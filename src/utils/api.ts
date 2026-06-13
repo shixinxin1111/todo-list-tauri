@@ -7,6 +7,9 @@ const todoWindowApi: TodoWindowApi = {
   getMode() {
     return invoke<TodoWindowState>("get_window_mode");
   },
+  getCursorPosition() {
+    return invoke<WindowCursorPosition | null>("get_window_cursor_position");
+  },
   onModeChange(callback) {
     let detach: UnlistenFn | null = null;
     let isDisposed = false;
