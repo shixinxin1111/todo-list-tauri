@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Rect, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 use uuid::Uuid;
 
@@ -371,11 +371,20 @@ fn show_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
     cache_tray_rect(app, tray_rect);
     let window = create_tray_window(app)?;
 
-    let monitor = get_main_window(app)
-        .ok()
-        .and_then(|window| window.current_monitor().ok().flatten())
-        .or_else(|| window.current_monitor().ok().flatten())
-        .ok_or_else(|| AppError::new("无法获取当前显示器信息。"))?;
+    #[cfg(target_os = "macos")]
+    if position_tray_window_on_mouse_screen(&window) {
+        set_traffic_lights_hidden(&window, true);
+        window.set_size(LogicalSize::new(TRAY_WINDOW_WIDTH, TRAY_WINDOW_HEIGHT))?;
+        let _ = position_tray_window_on_mouse_screen(&window);
+        window.show()?;
+        let _ = position_tray_window_on_mouse_screen(&window);
+        mark_tray_shown_now(app);
+        set_tray_visibility(app, TrayVisibility::Visible);
+        window.set_focus()?;
+        return Ok(());
+    }
+
+    let monitor = get_target_monitor_for_tray_window(app, &window)?;
     let scale_factor = monitor.scale_factor();
     let monitor_position = monitor.position().to_logical::<f64>(scale_factor);
     let monitor_size = monitor.size().to_logical::<f64>(scale_factor);
@@ -391,6 +400,129 @@ fn show_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
     window.set_focus()?;
 
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn position_tray_window_on_mouse_screen(window: &WebviewWindow) -> bool {
+    use cocoa::base::id;
+    use cocoa::foundation::{NSPoint, NSRect};
+    use objc::{class, msg_send, sel, sel_impl};
+
+    let Ok(ns_window) = window.ns_window() else {
+        return false;
+    };
+    let ns_window = ns_window as cocoa::base::id;
+    if ns_window.is_null() {
+        return false;
+    }
+
+    unsafe {
+        let mouse_location: NSPoint = msg_send![class!(NSEvent), mouseLocation];
+        let screens: id = msg_send![class!(NSScreen), screens];
+        let count: usize = msg_send![screens, count];
+
+        for index in 0..count {
+            let screen: id = msg_send![screens, objectAtIndex: index];
+            let frame: NSRect = msg_send![screen, frame];
+
+            let min_x = frame.origin.x;
+            let max_x = frame.origin.x + frame.size.width;
+            let min_y = frame.origin.y;
+            let max_y = frame.origin.y + frame.size.height;
+
+            if mouse_location.x < min_x
+                || mouse_location.x > max_x
+                || mouse_location.y < min_y
+                || mouse_location.y > max_y
+            {
+                continue;
+            }
+
+            let visible_frame: NSRect = msg_send![screen, visibleFrame];
+            let min_visible_x = visible_frame.origin.x;
+            let max_visible_x = visible_frame.origin.x + visible_frame.size.width;
+            let top_visible_y = visible_frame.origin.y + visible_frame.size.height;
+            let target_x = (mouse_location.x - TRAY_WINDOW_WIDTH / 2.0).clamp(
+                min_visible_x + TRAY_WINDOW_MARGIN,
+                (max_visible_x - TRAY_WINDOW_WIDTH - TRAY_WINDOW_MARGIN).max(min_visible_x),
+            );
+            let target_top_y = top_visible_y - TRAY_WINDOW_MARGIN;
+            let target_point = NSPoint::new(target_x, target_top_y);
+
+            let _: () = msg_send![ns_window, setFrameTopLeftPoint: target_point];
+            return true;
+        }
+    }
+
+    false
+}
+
+fn get_target_monitor_for_tray_window(
+    app: &AppHandle,
+    tray_window: &WebviewWindow,
+) -> Result<Monitor, AppError> {
+    #[cfg(target_os = "macos")]
+    if let Some(mouse_position) = get_mouse_position_in_desktop_space() {
+        if let Ok(monitors) = tray_window.available_monitors() {
+            if let Some(monitor) = monitors.into_iter().find(|monitor| {
+                let scale_factor = monitor.scale_factor();
+                let monitor_position = monitor.position().to_logical::<f64>(scale_factor);
+                let monitor_size = monitor.size().to_logical::<f64>(scale_factor);
+
+                is_logical_point_in_bounds(mouse_position, monitor_position, monitor_size)
+            }) {
+                return Ok(monitor);
+            }
+        }
+    }
+
+    get_main_window(app)
+        .ok()
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .or_else(|| tray_window.current_monitor().ok().flatten())
+        .ok_or_else(|| AppError::new("无法获取当前显示器信息。"))
+}
+
+fn is_logical_point_in_bounds(
+    point: LogicalPosition<f64>,
+    origin: LogicalPosition<f64>,
+    size: LogicalSize<f64>,
+) -> bool {
+    point.x >= origin.x
+        && point.x < origin.x + size.width
+        && point.y >= origin.y
+        && point.y < origin.y + size.height
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn get_mouse_position_in_desktop_space() -> Option<LogicalPosition<f64>> {
+    use cocoa::base::id;
+    use cocoa::foundation::{NSPoint, NSRect};
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let screens: id = msg_send![class!(NSScreen), screens];
+        let count: usize = msg_send![screens, count];
+        if count == 0 {
+            return None;
+        }
+
+        let mut desktop_top = f64::MIN;
+        for index in 0..count {
+            let screen: id = msg_send![screens, objectAtIndex: index];
+            let frame: NSRect = msg_send![screen, frame];
+            desktop_top = desktop_top.max(frame.origin.y + frame.size.height);
+        }
+
+        if !desktop_top.is_finite() {
+            return None;
+        }
+
+        let location: NSPoint = msg_send![class!(NSEvent), mouseLocation];
+        Some(LogicalPosition::new(location.x, desktop_top - location.y))
+    }
 }
 
 fn toggle_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
@@ -1083,5 +1215,23 @@ mod tests {
     #[test]
     fn delayed_global_mouse_down_hide_runs_without_tray_press() {
         assert!(should_hide_after_global_mouse_down(None));
+    }
+
+    #[test]
+    fn logical_point_bounds_detects_secondary_monitor() {
+        assert!(is_logical_point_in_bounds(
+            LogicalPosition::new(1800.0, 12.0),
+            LogicalPosition::new(1440.0, 0.0),
+            LogicalSize::new(1440.0, 900.0),
+        ));
+    }
+
+    #[test]
+    fn logical_point_bounds_rejects_primary_monitor_point() {
+        assert!(!is_logical_point_in_bounds(
+            LogicalPosition::new(120.0, 12.0),
+            LogicalPosition::new(1440.0, 0.0),
+            LogicalSize::new(1440.0, 900.0),
+        ));
     }
 }
