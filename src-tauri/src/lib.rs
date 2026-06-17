@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, Rect, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 use uuid::Uuid;
 
@@ -371,11 +371,7 @@ fn show_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
     cache_tray_rect(app, tray_rect);
     let window = create_tray_window(app)?;
 
-    let monitor = get_main_window(app)
-        .ok()
-        .and_then(|window| window.current_monitor().ok().flatten())
-        .or_else(|| window.current_monitor().ok().flatten())
-        .ok_or_else(|| AppError::new("无法获取当前显示器信息。"))?;
+    let monitor = get_target_monitor_for_tray_window(app, &window)?;
     let scale_factor = monitor.scale_factor();
     let monitor_position = monitor.position().to_logical::<f64>(scale_factor);
     let monitor_size = monitor.size().to_logical::<f64>(scale_factor);
@@ -391,6 +387,73 @@ fn show_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
     window.set_focus()?;
 
     Ok(())
+}
+
+fn get_target_monitor_for_tray_window(
+    app: &AppHandle,
+    tray_window: &WebviewWindow,
+) -> Result<Monitor, AppError> {
+    #[cfg(target_os = "macos")]
+    if let Some(mouse_position) = get_mouse_position_in_desktop_space() {
+        if let Ok(monitors) = tray_window.available_monitors() {
+            if let Some(monitor) = monitors.into_iter().find(|monitor| {
+                let scale_factor = monitor.scale_factor();
+                let monitor_position = monitor.position().to_logical::<f64>(scale_factor);
+                let monitor_size = monitor.size().to_logical::<f64>(scale_factor);
+
+                is_logical_point_in_bounds(mouse_position, monitor_position, monitor_size)
+            }) {
+                return Ok(monitor);
+            }
+        }
+    }
+
+    get_main_window(app)
+        .ok()
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .or_else(|| tray_window.current_monitor().ok().flatten())
+        .ok_or_else(|| AppError::new("无法获取当前显示器信息。"))
+}
+
+fn is_logical_point_in_bounds(
+    point: LogicalPosition<f64>,
+    origin: LogicalPosition<f64>,
+    size: LogicalSize<f64>,
+) -> bool {
+    point.x >= origin.x
+        && point.x < origin.x + size.width
+        && point.y >= origin.y
+        && point.y < origin.y + size.height
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn get_mouse_position_in_desktop_space() -> Option<LogicalPosition<f64>> {
+    use cocoa::base::id;
+    use cocoa::foundation::{NSPoint, NSRect};
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let screens: id = msg_send![class!(NSScreen), screens];
+        let count: usize = msg_send![screens, count];
+        if count == 0 {
+            return None;
+        }
+
+        let mut desktop_top = f64::MIN;
+        for index in 0..count {
+            let screen: id = msg_send![screens, objectAtIndex: index];
+            let frame: NSRect = msg_send![screen, frame];
+            desktop_top = desktop_top.max(frame.origin.y + frame.size.height);
+        }
+
+        if !desktop_top.is_finite() {
+            return None;
+        }
+
+        let location: NSPoint = msg_send![class!(NSEvent), mouseLocation];
+        Some(LogicalPosition::new(location.x, desktop_top - location.y))
+    }
 }
 
 fn toggle_tray_window(app: &AppHandle, tray_rect: Rect) -> Result<(), AppError> {
@@ -1083,5 +1146,23 @@ mod tests {
     #[test]
     fn delayed_global_mouse_down_hide_runs_without_tray_press() {
         assert!(should_hide_after_global_mouse_down(None));
+    }
+
+    #[test]
+    fn logical_point_bounds_detects_secondary_monitor() {
+        assert!(is_logical_point_in_bounds(
+            LogicalPosition::new(1800.0, 12.0),
+            LogicalPosition::new(1440.0, 0.0),
+            LogicalSize::new(1440.0, 900.0),
+        ));
+    }
+
+    #[test]
+    fn logical_point_bounds_rejects_primary_monitor_point() {
+        assert!(!is_logical_point_in_bounds(
+            LogicalPosition::new(120.0, 12.0),
+            LogicalPosition::new(1440.0, 0.0),
+            LogicalSize::new(1440.0, 900.0),
+        ));
     }
 }
