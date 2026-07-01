@@ -1,16 +1,16 @@
 import { Card, Empty, Table, Tag } from "@arco-design/web-react";
 import type { TableColumnProps } from "@arco-design/web-react";
-import { useEffect, useRef, useState } from "react";
 import { defaultFilters } from "@/constants/todo";
 import { StatusIcon } from "@/components/status-icon";
 import { StatusSelect } from "@/components/status-select";
 import { TableActions } from "@/components/table-actions";
 import { TodoContent } from "@/components/todo-content";
 import { Toolbar } from "@/components/toolbar";
-import { classNames } from "@/utils/class-name";
 import { getStatusTagColor } from "@/utils/status";
 import type { TodoCounts, TodoFilters } from "@/types/app";
 import styles from "./index.module.css";
+
+const TODO_TABLE_SCROLL_Y = 450;
 
 type TodoWorkspaceProps = {
   counts: TodoCounts;
@@ -43,34 +43,6 @@ export function TodoWorkspace({
   todos,
   totalTodoCount,
 }: TodoWorkspaceProps) {
-  const tableFrameRef = useRef<HTMLDivElement>(null);
-  const [hasTableScrollbar, setHasTableScrollbar] = useState(false);
-
-  useEffect(() => {
-    const tableFrame = tableFrameRef.current;
-
-    if (!tableFrame) {
-      return;
-    }
-
-    const observedTableFrame = tableFrame;
-
-    function updateScrollbarState() {
-      setHasTableScrollbar(
-        observedTableFrame.scrollHeight > observedTableFrame.clientHeight,
-      );
-    }
-
-    updateScrollbarState();
-
-    const resizeObserver = new ResizeObserver(updateScrollbarState);
-    resizeObserver.observe(observedTableFrame);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [todos]);
-
   /**
    * todoTableColumns 定义主窗口 Arco Table 的列结构。
    *
@@ -81,7 +53,6 @@ export function TodoWorkspace({
       title: "",
       key: "statusIcon",
       render: (_, todo) => <StatusIcon status={todo.status} />,
-      width: 32,
     },
     {
       title: "任务",
@@ -103,7 +74,6 @@ export function TodoWorkspace({
           onChange={(status) => onStatusChange(todo.id, status)}
         />
       ),
-      width: 120,
     },
     {
       title: "操作",
@@ -115,7 +85,6 @@ export function TodoWorkspace({
           onEdit={onEdit}
         />
       ),
-      width: 96,
     },
   ];
 
@@ -171,43 +140,26 @@ export function TodoWorkspace({
           </div>
         </div>
 
-        <div
-          className={classNames(
-            styles.tableHeader,
-            hasTableScrollbar && styles.tableHeaderWithScrollbar,
-          )}
-          role="row"
-          aria-hidden="true"
-        >
-          <span className={styles.tableHeaderCell} />
-          <span className={styles.tableHeaderCell}>任务</span>
-          <span className={styles.tableHeaderCell}>状态</span>
-          <span className={styles.tableHeaderCell}>操作</span>
-        </div>
-
-        <div className={styles.tableFrame} ref={tableFrameRef}>
-          <Table
-            border={false}
-            className={styles.table}
-            columns={todoTableColumns}
-            data={todos}
-            loading={isTodoBusy}
-            noDataElement={
-              <Empty
-                className={styles.empty}
-                description={
-                  totalTodoCount === 0
-                    ? "还没有任务，先添加一项。"
-                    : "没有符合条件的任务。"
-                }
-              />
-            }
-            pagination={false}
-            rowKey="id"
-            showHeader={false}
-            tableLayoutFixed
-          />
-        </div>
+        <Table
+          border={false}
+          className={styles.table}
+          columns={todoTableColumns}
+          data={todos}
+          loading={isTodoBusy}
+          noDataElement={
+            <Empty
+              className={styles.empty}
+              description={
+                totalTodoCount === 0
+                  ? "还没有任务，先添加一项。"
+                  : "没有符合条件的任务。"
+              }
+            />
+          }
+          pagination={false}
+          rowKey="id"
+          scroll={{ y: TODO_TABLE_SCROLL_Y }}
+        />
       </Card>
     </section>
   );

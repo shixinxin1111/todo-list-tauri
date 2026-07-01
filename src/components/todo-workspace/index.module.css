@@ -1,15 +1,14 @@
 .workspace {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
   min-width: 0;
   height: 100%;
   min-height: 0;
 }
 
+.workspace > * + * {
+  margin-top: 12px;
+}
+
 .card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -24,8 +23,6 @@
 }
 
 .card :global(.arco-card-body) {
-  display: grid;
-  grid-template-rows: auto 40px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -76,52 +73,8 @@
   white-space: nowrap;
 }
 
-.tableHeader {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 120px 96px;
-  align-items: center;
-  border-bottom: 1px solid rgba(48, 45, 39, 0.07);
-  background: rgba(250, 247, 241, 0.72);
-}
-
-.tableHeaderWithScrollbar {
-  margin-right: 14px;
-}
-
-.tableHeaderCell {
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 9px 16px;
-  color: #7a7368;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.tableHeaderCell:first-child {
-  padding: 0;
-}
-
-.tableHeaderCell:last-child {
-  padding-right: 20px;
-}
-
-.tableFrame {
-  min-width: 0;
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
-}
-
 .table {
   min-height: 0;
-}
-
-.table :global(.arco-table-td) {
-  border-bottom-color: rgba(48, 45, 39, 0.07);
-}
-
-.table :global(.arco-table-td:last-child) {
-  padding-right: 20px;
 }
 
 .doneTitle {
